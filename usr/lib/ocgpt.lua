@@ -1,7 +1,6 @@
 -- OpenComputers General Partition Table driver --
 -- The partition table is documented at https://ocfs.github.io/ocgpt/ --
 
-local drive = require("drive")
 if not string.unpack then
   error("string.unpack not found - Lua 5.3+ is required")
 end
@@ -55,14 +54,21 @@ function gpt.readTable(drv)
 end
 
 function gpt.writeTable(drv, ptab)
-  checkArg(1, drive, "table")
+  checkArg(1, drv, "table")
   checkArg(2, ptab, "table")
   local wrt = ""
+  drv = drv.node or drv
   for i=1, #ptab, 1 do
     local e = ptab[i]
     wrt = wrt .. string.pack(pdat, e.type, e.flags, e.guid, e.label. e._start, e._end)
+    if #wrt >= 512 then
+      drv.writeSector(i / 8 + 1, wrt)
+      wrt = ""
+    end
   end
-  
+  if #wrt > 0 then
+    drv.writeSector(9, wrt)
+  end
 end
 
 function gpt.addPartition(drv, label, start, len)

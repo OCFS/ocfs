@@ -1,10 +1,13 @@
 -- some helper functions over the drive component --
--- yes, this makes use of some OOP --
 
 local component = component or require("component")
+local computer = computer or require("computer")
+local drive = require("drive")
 
-local drive = {}
-
+-- the base drive wrapper object.
+-- read sectors are buffered and kept in memory until they are either
+-- written to or the computer's free memory drops below 1k.
+-- written sectors are not buffered because.... reasons.
 local _base = {}
 
 function _base:readSector(n)
@@ -12,7 +15,11 @@ function _base:readSector(n)
   if n < self._start or n > self._end then
     return nil, "cannot read outside of allocated sector range"
   end
-  return self.node.readSector(n)
+  if computer.freeMemory() < 1024 then -- low memory, free up buffer
+    self.buffer = {}
+  end
+  self.buffer[n] = self.buffer[n] or self.node.readSector(n)
+  return self.buffer[n]
 end
 
 function _base:readSectorRange(start, len)
@@ -31,6 +38,7 @@ function _base:writeSector(n, dat)
   if n < self._start or n > self._end then
     return nil, "cannot write outside of allocated sector range"
   end
+  self.buffer[n] = nil
   return self.node.writeSector(n, dat)
 end
 
@@ -61,7 +69,8 @@ function drive.cordon(proxy, start, _end)
   end
   start = start or 1
   _end = _end or drive.getCapacity() // 512
-  return setmetatable({_start = start, _end = _end, node = proxy}, {__index = base})
+  return setmetatable({_start = start, _end = _end, node = proxy, buffer = {}},
+                                                               {__index = base})
 end
 
 return drive
