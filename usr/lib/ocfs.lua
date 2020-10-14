@@ -154,12 +154,19 @@ function _stream:read(n)
   if self.closed then
     return nil, "cannot read from closed file stream"
   end
-  -- XXX TODO XXX TODO: file data bound checks
-  -- TODO XXX TODO XXX: strip leading 'f' from file data sectors
   local start = math.floor(self.ptr / 512)
   local diffStart = self.ptr - (start * 512)
-  local total = math.ceil((self.ptr + n) / 512) - start
-  local read = self.node.node:readSectorRange(self.inode.data[1] + start, total)
+  local total = math.ceil((self.ptr + n) / 512)
+  local read = ""
+  for i=start, total, 1 do
+    if not self.inode.data[i] then
+      break
+    end
+    local data = self.node.node:readSector(self.inode.data[i])
+    read = read .. (data or "")
+    if not data then break end
+  end
+  if n > #read then n = read end
   self.ptr = self.ptr + n
   return (read:sub(diffStart, diffStart + n))
 end
