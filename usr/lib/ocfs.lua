@@ -1,19 +1,32 @@
 -- ocfs driver --
 
+--[[ DISCLAIMER
+
+        The below code is known to the state of California to cause cancer.
+        The creator (Ocawesome101) is NOT responsible for any mutilations,
+        nullifications, abominations, death, injury (permanant or temporary),
+        perjury, murder, birth defects, feeling of shock, horror, or terror, or
+        ANY other event, whether normal or abnormal, that may result from this
+        code.
+  ]]
+
 local drive = require("drive")
 
 local ocfs = {}
+
 local patterns = {
   superblock = "<c7I1c504",
-  inode = "<c1I1I2I4I4I8c44c444",
+  inode = "<c1I1I2I4I4I8c44c448",
   generic = "<c1",
   extdata = "<c1" .. string.rep("I8", 63),
   filedata = "<c1c511"
 }
+
 local types = {
   file      = 1,
   directory = 2
 }
+
 local FS_SIG = "\27OCFS\13\27"
 
 -- TODO: rewrite permission packing code if possible
@@ -149,7 +162,32 @@ end
 
 function _fs:writeInode(inode)
   checkArg(1, inode, "table")
-  local base = string.pack(patterns.inode, )
+  local data = self:packData(inode.data)
+  local begin, write, dnext = nil, {}
+  if #data <= 440 then
+    begin = data
+    dnext = 0
+  else
+    begin = data:sub(1, 440)
+    data = data:sub(441)
+    local total = math.ceil((#data) / 496)
+    local s = self:findFreeSector()
+    dnext = s
+    for i=1, total, 1 do
+      local t = self:findFreeSector()
+      write[s] = "e" .. data:sub(496 * i - 495, 496 * i) .. string.pack("<I8", t)
+      s = t
+    end
+  end
+  write[inode.sect] = string.pack(patterns.inode, "i", inode.type,
+                           packPermissions(inode.permissions), inode.owner,
+                           inode.group, inode.lastModified, inode.name,
+                           begin, dnext)
+  
+  for k, v in pairs(write) do
+    self.node:writeSector(k, v)
+  end
+  return true
 end
 
 -- make paths sane
