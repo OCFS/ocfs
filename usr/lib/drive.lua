@@ -2,8 +2,8 @@
 
 local component = component or require("component")
 local computer = computer or require("computer")
-local drive = require("drive")
 
+local drive = {}
 -- the base drive wrapper object.
 -- read sectors are buffered and kept in memory until they are either
 -- written to or the computer's free memory drops below 1k.
@@ -56,21 +56,21 @@ function _base:writeAtSector(n, dat)
   return ok, err
 end
 
-function base:getCapacity()
+function _base:getCapacity()
   return (self._end * 512) - (self._start * 512)
 end
 
 function drive.cordon(proxy, start, _end)
   checkArg(1, proxy, "table")
   checkArg(2, start, "number", "nil")
-  checkArg(3, _end, "number" (not start) and "nil")
+  checkArg(3, _end, "number", (not start) and "nil")
   if proxy.type ~= "drive" then
     return nil, "provided component is not a drive"
   end
   start = start or 1
   _end = _end or drive.getCapacity() // 512
   return setmetatable({_start = start, _end = _end, node = proxy, buffer = {}},
-                                                               {__index = base})
+                                                               {__index = _base})
 end
 
 return drive
