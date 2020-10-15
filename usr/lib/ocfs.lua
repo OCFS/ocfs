@@ -363,6 +363,24 @@ function _fs:touch(file, ftype)
     return nil, err
   end
   
+  if inode.type ~= types.directory then
+    return nil, base..": not a directory"
+  end
+
+  local new = {
+    type        = types[ftype],
+    permissions = inode.permissions,
+    owner       = inode.owner,
+    group       = inode.group,
+    lastModified= os.time() * 1000,
+    fname       = last,
+    data        = {},
+    sect        = self:findFreeSector()
+  }
+  inode.data[#inode.data + 1] = new.sect
+  self:writeInode(inode)
+  self:writeInode(new)
+  return true
 end
 
 function _fs:space()
@@ -423,3 +441,5 @@ function ocfs.new(drv, pdata, proxify)
   end
   return newObj
 end
+
+return ocfs
