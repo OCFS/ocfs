@@ -128,7 +128,7 @@ function _fs:findFreeSector()
     print("OCFS: Rebuilding sector cache")
     -- rebuild the cache - this is SLOW.
     -- note: this will probably end up flushing the read-sector buffer
-    -- due to the large amount of sectors
+    -- on most configurations due to the large amount of read sectors
     local max = self.node:getCapacity() // 512
     for i=3, max, 1 do -- skip the first 2 sectors as they are ALWAYS used
       local data = self.node:readSector(max)
@@ -148,6 +148,8 @@ function _fs:findFreeSector()
 end
 
 function _fs:writeInode(inode)
+  checkArg(1, inode, "table")
+  local base = string.pack(patterns.inode, )
 end
 
 -- make paths sane
