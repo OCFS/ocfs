@@ -383,6 +383,28 @@ function _fs:touch(file, ftype)
   return true
 end
 
+-- expects 'perms' to be in the format {owner = {r = true, w = false, x = true},
+--                                      ...}
+-- 'perms' masks the current permissions, i.e. only what is specified will be
+-- changed
+function _fs:chmod(file, perms)
+  checkArg(1, file, "string")
+  checkArg(2, perms, "table")
+  if not (perms.owner and perms.group and perms.other) then
+    return nil, "invalid permissions provided"
+  end
+  local inode, err = self:resolve(file)
+  if not inode then
+    return nil, err
+  end
+  for k, v in pairs(perms) do
+    for p, b in pairs(v) do
+      inode.permissions[k][p] = b
+    end
+  end
+  return self:writeInode(inode)
+end
+
 function _fs:remove(file)
   checkArg(1, file, "string")
   local inode, err = self:resolve(file)
