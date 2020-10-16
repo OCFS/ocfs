@@ -385,6 +385,36 @@ end
 
 function _fs:remove(file)
   checkArg(1, file, "string")
+  local inode, err = self:resolve(file)
+  if not inode then
+    return nil, err
+  end
+  if inode.type == types.directory then
+    return nil, file .. ": is a directory"
+  end
+  local blank = string.rep("\0", 512)
+  self.node:writeSector(inode.sect, blank)
+  for i=1, #inode.data, 1 do
+    self.node:writeSector(inode.data[i], blank)
+  end
+  return true
+end
+
+function _fs:removedir(file)
+  checkArg(1, file, "string")
+  local inode, err = self:resolve(file)
+  if not inode then
+    return nil, err
+  end
+  if inode.type ~= types.directory then
+    return nil, file .. ": not a directory"
+  end
+  if #inode.data > 0 then
+    return nil, file .. ": directory not empty"
+  end
+  local blank = string.rep("\0", 512)
+  self.node:writeSector(inode.sect, blank)
+  return true
 end
 
 function _fs:space()
