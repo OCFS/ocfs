@@ -179,6 +179,7 @@ function _fs:writeInode(inode)
       s = t
     end
   end
+  inode.lastModified = os.time() * 1000 -- 64-bit UNIX time in ms
   write[inode.sect] = string.pack(patterns.inode, "i", inode.type,
                            packPermissions(inode.permissions), inode.owner,
                            inode.group, inode.lastModified, inode.name,
@@ -488,12 +489,7 @@ function ocfs.new(drv, pdata, proxify)
     __index = _fs
   })
   if proxify then
-    local newProxy = setmetatable({}, {__index = function(t, k)
-      return function(...)
-        return t[k](t, ...)
-      end
-    end})
-    return newProxy
+    error("proxify option not yet supported")
   end
   return newObj
 end
