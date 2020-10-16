@@ -80,13 +80,18 @@ function _fs:unpackData(base, inInode, leaveLast)
   checkArg(1, base, "string")
   checkArg(2, inInode, "boolean", "nil")
   checkArg(3, leaveLast, "boolean", "nil")
-  local pat = string.format("<%s%s", inInode and "" or "c1", string.rep("I8", #base - (inInode and 0 or 8) / 8))
+  print((#base - (inInode and 0 or 8)) / 8)
+  local pat = string.format("<%s%s", inInode and "" or "c1", string.rep("I8", (#base - (inInode and 0 or 8)) / 8))
   local unpacked = {string.unpack(pat, base)}
   if not leaveLast then
     local last = unpacked[#unpacked]
     unpacked[#unpacked] = nil
     if last ~= 0 then
-      local extended = _fs:unpackData()
+      local sig, dat = string.unpack(patterns.extdata, self.node:readSector(last))
+      if sig ~= "e" then
+        return nil, "invalid extended data signature"
+      end
+      local extended = self:unpackData(dat)
       for i=1, #extended, 1 do
         if extended[i] == 0 then break end
         unpacked[#unpacked + 1] = extended[i]
@@ -94,10 +99,12 @@ function _fs:unpackData(base, inInode, leaveLast)
     end
   end
   for i=1, #unpacked, 1 do
+    unpacked[i] = tonumber(unpacked[i])
     if unpacked[i] == 0 then
-      unpacked[i] = nil
+      table.remove(unpacked, i)
     end
   end
+  print(#unpacked)
   return unpacked
 end
 
@@ -116,10 +123,10 @@ function _fs:readInode(sect)
   if ftype == 0 then
     return nil, "invalid file type at inode::"..sect
   end
-  local data = _fs:unpackData(fdata, true)
+  local data = self:unpackData(fdata, true)
   return {
     type        = ftype,
-    permissions = parsePermissions(perms),
+    permissions = unpackPermissions(perms),
     owner       = owner,
     group       = group,
     lastModified= lmod,
@@ -144,16 +151,17 @@ function _fs:findFreeSector()
     -- on most configurations due to the large amount of read sectors
     local max = self.node:getCapacity() // 512
     for i=3, max, 1 do -- skip the first 2 sectors as they are ALWAYS used
-      local data = self.node:readSector(max)
+      local data = self.node:readSector(i)
       local sig = data:sub(1,1)
       if sig ~= "e" and sig ~= "i" and sig ~= "d" then -- the sector is unused
-        cache[#cache + 1] = data
+        cache[#cache + 1] = i
         if #cache == 63 then -- max 63 sectors
           break
         end
       end
     end
   end
+  print(#cache, cache[1], table.unpack(cache))
   local ret = table.remove(cache, 1)
   self.node:writeSector(1, string.pack(patterns.superblock, a, b,
                                                           self:packData(cache)))
@@ -209,6 +217,9 @@ function _fs:resolve(file)
   local root = self:readInode(2)
   local segments = sane(file)
   local cur = root
+  if #segments == 0 or file == "/" then
+    return cur
+  end
   for i=1, #segments, 1 do
     if cur.type ~= types.directory then
       return nil, string.format("%s: not a directory", table.concat(segments, 1, i))
@@ -359,6 +370,10 @@ function _fs:touch(file, ftype)
   local segments = sane(file)
   local base = "/"..table.concat(segments, "/", 1, #segments - 2)
   local last = segments[#segments]
+  if #segments == 1 then
+    base = "/"
+    last = segments[1]
+  end
   local inode, err = self:resolve(base)
   if not inode then
     return nil, err
@@ -374,10 +389,11 @@ function _fs:touch(file, ftype)
     owner       = inode.owner,
     group       = inode.group,
     lastModified= os.time() * 1000,
-    fname       = last,
+    name        = last,
     data        = {},
     sect        = self:findFreeSector()
   }
+  inode.data = inode.data or {}
   inode.data[#inode.data + 1] = new.sect
   self:writeInode(inode)
   self:writeInode(new)
@@ -467,7 +483,7 @@ function ocfs.new(drv, pdata, proxify)
   checkArg(3, proxify, "boolean", "nil")
 
   if not drv.node then
-    drv = drive.cordon(pdata._start, pdata._end)
+    drv = drive.cordon(drv, pdata._start, pdata._end)
   end
   local superblock = drv:readSector(1)
   local flags, err = checkSuperblock(superblock)
