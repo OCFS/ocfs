@@ -383,6 +383,10 @@ function _fs:touch(file, ftype)
   return true
 end
 
+function _fs:remove(file)
+  checkArg(1, file, "string")
+end
+
 function _fs:space()
   return {
     used = 0,
